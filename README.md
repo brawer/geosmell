@@ -18,7 +18,6 @@ ID into the “cells” and press the circular button.
 git clone https://github.com/brawer/geosmell.git ; cd geosmell
 go build ; go test
 curl -L http://ftp.acc.umu.se/mirror/wikimedia.org/dumps/commonswiki/20190901/commonswiki-20190901-geo_tags.sql.gz -o geo_tags.sql.gz
-gzip -d geo_tags.sql.gz
 ./geosmell --level 17 | bzip2 -9 >wikicommons-20190901.csv.bz2
 ```
 
@@ -30,7 +29,7 @@ It would be nice to collect additional signals about geographic areas.
 It would be nice to completely automate the manual steps above, so
 that the tool could run in the cloud and periodically store the output
 into a Content Delivery Network such as Digital Ocean Spaces or
-similar.  The tool should automatically find, download and de-compress
+similar.  The tool should automatically find and download
 the most recent dump from Wikimedia Commons; likewise, it should
 automatically create the output file in compressed form with the
 date-tagged name and then finally put the output into storage.

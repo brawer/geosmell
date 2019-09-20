@@ -4,6 +4,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"flag"
 	"fmt"
 	"log"
@@ -16,10 +17,14 @@ import (
 func main() {
 	level := flag.Int("level", 17, "Level of S2 cells being aggregated")
 	flag.Parse()
-	//resp, err := http.Get("http://en.wikipedia.org/")
 
 	// http://ftp.acc.umu.se/mirror/wikimedia.org/dumps/commonswiki/20190820/commonswiki-20190820-geo_tags.sql.gz
-	stream, err := os.Open("geo_tags.sql")
+	gzstream, err := os.Open("geo_tags.sql.gz")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	stream, err := gzip.NewReader(gzstream)
 	if err != nil {
 		log.Fatal(err)
 	}
