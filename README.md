@@ -5,7 +5,8 @@ Experimental code for computing signals about geographic areas.
 To identify geographic areas, we use [S2 cells](http://s2geometry.io/).
 Currently, we just count how many pictures have been geo-tagged on
 [Wikimedia Commons](https://commons.wikimedia.org/) and aggregate
-this to S2 cells; their level can be selected at runtime.
+this to S2 cells. You can choose the desired [aggregation level](https://s2geometry.io/resources/s2cell_statistics); `--level 17` aggregates
+to cells of about 70×70 meters in size.
 
 To visualize the geographic region of an S2 cell on a map, you can use
 the [Sidewalk Labs Region Coverer](https://s2.sidewalklabs.com/regioncoverer/).  Enter the S2 cell
