@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2019 Sascha Brawer <sascha@brawer.ch>
+// SPDX-License-Identifier: MIT
+
 package main
 
 import (

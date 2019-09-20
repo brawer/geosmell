@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2019 Sascha Brawer <sascha@brawer.ch>
+// SPDX-License-Identifier: MIT
+
 package main
 
 import (
@@ -16,7 +19,7 @@ func main() {
 	//resp, err := http.Get("http://en.wikipedia.org/")
 
 	// http://ftp.acc.umu.se/mirror/wikimedia.org/dumps/commonswiki/20190820/commonswiki-20190820-geo_tags.sql.gz
-	stream, err := os.Open("commonswiki-20190820-geo_tags.sql")
+	stream, err := os.Open("geo_tags.sql")
 	if err != nil {
 		log.Fatal(err)
 	}
