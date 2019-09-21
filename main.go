@@ -7,7 +7,9 @@ import (
 	"compress/gzip"
 	"flag"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"sort"
 
@@ -18,13 +20,16 @@ func main() {
 	level := flag.Int("level", 17, "Level of S2 cells being aggregated")
 	flag.Parse()
 
-	// http://ftp.acc.umu.se/mirror/wikimedia.org/dumps/commonswiki/20190820/commonswiki-20190820-geo_tags.sql.gz
-	gzstream, err := os.Open("geo_tags.sql.gz")
+	client := &http.Client{}
+	commonsVersion := findLatestWikiCommons(client)
+	fmt.Printf("Fetching geotags of Wikimedia Commons, using version: %s\n",
+		commonsVersion.String()[:10])
+	resp, err := fetchWikiCommons(client, commonsVersion)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	stream, err := gzip.NewReader(gzstream)
+	stream, err := gzip.NewReader(resp.Body)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -39,8 +44,18 @@ func main() {
 		cellID := s2.CellIDFromLatLng(latLng).Parent(*level)
 		buf[cellID] += 1
 	}
-	writeCounts(buf)
-
+	filename := fmt.Sprintf("wikicommons-%04d%02d%02d.csv",
+		commonsVersion.Year(), commonsVersion.Month(),
+		commonsVersion.Day())
+	out, err := os.Create(filename + ".gz")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer out.Close()
+	gzout := gzip.NewWriter(out)
+	gzout.Name = filename
+	writeCounts(buf, gzout)
+	gzout.Close()
 	if err := c.Err(); err != nil {
 		log.Fatal(err)
 	}
@@ -52,7 +67,7 @@ func (a S2Cells) Len() int           { return len(a) }
 func (a S2Cells) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a S2Cells) Less(i, j int) bool { return a[i] < a[j] }
 
-func writeCounts(counts map[s2.CellID]int64) {
+func writeCounts(counts map[s2.CellID]int64, out io.Writer) {
 	cells := make(S2Cells, len(counts))
 	i := 0
 	for cell, _ := range counts {
@@ -61,6 +76,6 @@ func writeCounts(counts map[s2.CellID]int64) {
 	}
 	sort.Sort(cells)
 	for _, cell := range cells {
-		fmt.Printf("%s,%d\n", cell.ToToken(), counts[cell])
+		fmt.Fprintf(out, "%s,%d\n", cell.ToToken(), counts[cell])
 	}
 }

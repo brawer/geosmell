@@ -6,10 +6,63 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
+	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
+	"strings"
+	"time"
 )
+
+const baseUrl = "https://ftp.acc.umu.se/mirror/wikimedia.org/dumps/commonswiki/"
+
+func fetchWikiCommons(client *http.Client, version time.Time) (*http.Response, error) {
+	date := fmt.Sprintf("%04d%02d%02d", version.Year(), version.Month(), version.Day())
+	url := fmt.Sprintf("%s/%s/commonswiki-%s-geo_tags.sql.gz", baseUrl, date, date)
+	return client.Get(url)
+}
+
+func findLatestWikiCommons(client *http.Client) time.Time {
+	resp, err := client.Get(baseUrl)
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	dateSet := make(map[string]bool)
+	re := regexp.MustCompile("<a href=\"(2[0-9]{7})/\">")
+	for _, match := range re.FindAllStringSubmatch(string(body), -1) {
+		dateSet[match[1]] = true
+	}
+	dates := make([]string, 0, len(dateSet))
+	for date, _ := range dateSet {
+		dates = append(dates, date)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
+	for _, date := range dates {
+		resp, err := client.Get(baseUrl + "/" + date + "/")
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if strings.Contains(string(body), "geo_tags.sql.gz") {
+			year, _ := strconv.Atoi(date[0:4])
+			month, _ := strconv.Atoi(date[4:6])
+			day, _ := strconv.Atoi(date[6:8])
+			return time.Date(year, time.Month(month), day, 0, 0, 0, 0,
+				time.UTC)
+		}
+	}
+
+	log.Fatal("cannot find any Wikimedia Commons dump")
+	return time.Date(2009, time.Month(11), 25, 0, 0, 0, 0, time.UTC)
+}
 
 type WikiCommonsParser struct {
 	scanner  *bufio.Scanner
