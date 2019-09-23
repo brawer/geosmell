@@ -28,7 +28,11 @@ func fetchWikiCommons(client *http.Client, version time.Time) (*http.Response, e
 
 func findLatestWikiCommons(client *http.Client) time.Time {
 	resp, err := client.Get(baseUrl)
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer resp.Body.Close()
+
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatal(err)
