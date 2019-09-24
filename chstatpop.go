@@ -4,10 +4,14 @@
 package main
 
 import (
+	"archive/zip"
 	"errors"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
+	"path"
 	"regexp"
 	"strconv"
 	"time"
@@ -71,4 +75,60 @@ func findLatestCHStatPop(client *http.Client) (string, *time.Time, error) {
 	pubDate := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
 
 	return downloadUrl.String(), &pubDate, nil
+}
+
+func fetchCHStatPop(client *http.Client, url string) (string, error) {
+	tempDir, err := ioutil.TempDir("", "geosmell-chstatpop")
+	fetchedPath := path.Join(tempDir, "fetched.zip")
+	extractedPath := path.Join(tempDir, "extracted.csv")
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := client.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	fetchedFile, err := os.Create(fetchedPath)
+	if err != nil {
+		return "", err
+	}
+	defer fetchedFile.Close()
+
+	_, err = io.Copy(fetchedFile, resp.Body)
+
+	if err != nil {
+		return "", err
+	}
+
+	extractedFile, err := os.Create(extractedPath)
+	if err != nil {
+		return "", err
+	}
+	defer extractedFile.Close()
+
+	zipFile, err := zip.OpenReader(fetchedFile.Name())
+	if err != nil {
+		return "", err
+	}
+
+	re := regexp.MustCompile(`STATPOP20[0-9]{2}G\.csv$`)
+	for _, file := range zipFile.File {
+		if re.FindString(file.Name) != "" {
+			statFile, err := file.Open()
+			if err != nil {
+				return "", err
+			}
+			defer statFile.Close()
+			_, err = io.Copy(extractedFile, statFile)
+			if err != nil {
+				return "", err
+			}
+		}
+	}
+
+	// TODO: Extract CSV with raw statistics, write to exractedFile.
+	return extractedPath, nil
 }
