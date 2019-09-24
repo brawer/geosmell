@@ -49,10 +49,11 @@ TEST(SwissRegisterIDToS2Loop, Bern) {
 
 TEST(GetOverlapFractions, Bern) {
   OverlapFractions overlaps;
-  GetOverlapFractions(60002000, 17, &overlaps);
+  GetOverlapFractions(60002000, 18, &overlaps);
   double totalOverlap = 0.0;
   for (auto ov : overlaps) {
     LOG(INFO) << "CellId: " << ov.first.ToToken() << ", overlap fraction: " << ov.second;
+    EXPECT_EQ(ov.first.level(), 18);
     totalOverlap += ov.second;
   }
   EXPECT_NEAR(totalOverlap, 1.0, 0.01);
