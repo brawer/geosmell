@@ -31,7 +31,7 @@ void ConvertSwissPopulationStats(std::istream *input, int level, std::ostream *o
     LOG_EVERY_N(INFO, 1000) << "Processing statistical region: " << regionId;
     DistributeStats(regionId, regionStats, level, &cellStats);
   }
-  *output << "TotalPopulation,FemalePopulation,MalePopulation\n";
+  *output << "S2CellId,TotalPopulation,FemalePopulation,MalePopulation\n";
   for (auto s : cellStats) {
       S2CellId cellId = s.first;
       const PopulationStats& stat = s.second;

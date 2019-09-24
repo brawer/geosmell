@@ -75,7 +75,7 @@ TEST(ConvertSwissPopulationStats, ShouldProcessTestFile) {
   ConvertSwissPopulationStats(&input, 16, &output);
   EXPECT_EQ(
       output.str(),
-      "TotalPopulation,FemalePopulation,MalePopulation\n"
+      "S2CellId,TotalPopulation,FemalePopulation,MalePopulation\n"
       "478c7d241,9,4,5\n"
       "478c7d243,22,11,11\n"
       "478c7d269,12,6,6\n"
