@@ -15,9 +15,9 @@ find_package(Threads REQUIRED)
 
 add_definitions(-DS2_USE_GLOG)
 
-set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+# set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 
-link_libraries(glog::glog s2 ${OPENSSL_LIBRARIES})
+link_libraries(gflags glog::glog s2 ${OPENSSL_LIBRARIES})
 
 add_library(chpopstat chpopstat.cc chpopstat.h)
 add_executable(chpopstat_convert chpopstat_convert.cc)

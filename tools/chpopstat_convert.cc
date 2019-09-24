@@ -1,24 +1,33 @@
 // SPDX-FileCopyrightText: 2019 Sascha Brawer <sascha@brawer.ch>
 // SPDX-License-Identifier: MIT
 
+#include <iostream>
+#include <fstream>
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 #include <s2/s2latlng.h>
 
 #include "chpopstat.h"
 
-// TODO: The point of this program is just to make sure that we can
-// use glog, gflags, and s2 at the same time in a statically linked
-// Linux binary that can run independently (without all the build-time
-// dependencies) inside a Docker comtainer. Currently, it does not
-// do anything useful yet.
-
 int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
+  gflags::SetUsageMessage("Convert Swiss population statistics "
+                          "from Swiss statistical regions to S2 cells");
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
 
-  const S2LatLng c = geosmell::SwissGridToLatLng(600000, 200000);
-  LOG(INFO) << "Hello world, here are " << 12 << " cookies for you; "
-	    << c;
+  if (argc != 4) {
+    std::cerr << "Usage: "
+	      << gflags::ProgramInvocationShortName()
+	      << " path/to/input.csv path/to/output.csv 17"
+	      << std::endl;
+    return 1;
+  }
+
+  // TODO: Use gflags. Somehow gflags don’t get recognized when declared locally.
+  std::ifstream input(argv[1]);
+  std::ofstream output(argv[2]);
+  int level = std::atoi(argv[3]);
+  geosmell::ConvertSwissPopulationStats(&input, level, &output);
   return 0;
 }

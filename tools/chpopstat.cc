@@ -1,6 +1,11 @@
 // SPDX-FileCopyrightText: 2019 Sascha Brawer <sascha@brawer.ch>
 // SPDX-License-Identifier: MIT
 
+#include <ctype.h>
+#include <string.h>
+#include <cmath>
+#include <cstdlib>
+#include <iomanip>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -16,6 +21,113 @@
 #include "chpopstat.h"
 
 namespace geosmell {
+
+void ConvertSwissPopulationStats(std::istream *input, int level, std::ostream *output) {
+  CellPopulationStats cellStats;
+  CSVParser parser(input);
+  uint64_t regionId;
+  PopulationStats regionStats;
+  while (parser.Next(&regionId, &regionStats)) {
+    LOG_EVERY_N(INFO, 1000) << "Processing statistical region: " << regionId;
+    DistributeStats(regionId, regionStats, level, &cellStats);
+  }
+  *output << "TotalPopulation,FemalePopulation,MalePopulation\n";
+  for (auto s : cellStats) {
+      S2CellId cellId = s.first;
+      const PopulationStats& stat = s.second;
+      long numTotal = std::round(stat.numTotal);
+      long numFemale = std::round(stat.numFemale);
+      // Prevent impossible output in case of (rare) rounding errors.
+      if (numFemale > numTotal) {
+          numFemale = numTotal;
+      }
+      long numMale = numTotal - numFemale;
+      // Suppress all-zero cells; this can happen due to rounding.
+      if (numTotal > 0) {
+          *output << cellId.ToToken()
+                  << ',' << numTotal
+                  << ',' << numFemale
+                  << ',' << numMale
+                  << '\n';
+    }
+  }
+  output->flush();
+}
+
+void DistributeStats(uint64_t regionId,
+                     const PopulationStats& stats,
+                     int level, CellPopulationStats *cellStats) {
+  OverlapFractions overlaps;
+  GetOverlapFractions(regionId, level, &overlaps);
+  for (auto overlap : overlaps) {
+    S2CellId cellId = overlap.first;
+    double fraction = overlap.second;
+    PopulationStats* s = &((*cellStats)[cellId]);
+    s->numTotal += fraction * stats.numTotal;
+    s->numFemale += fraction * stats.numFemale;
+    s->numMale += fraction * stats.numMale;
+  }
+}
+
+CSVParser::CSVParser(std::istream* stream) :
+  stream_(stream),
+  columnAreaId_(-1), columnTotal_(-1), columnFemale_(-1), columnMale_(-1)
+{
+  std::string header;
+  if (!std::getline(*stream_, header)) {
+    return;
+  }
+  size_t start = 0, end = 0;
+  int columnId = 0;
+  while ((end = header.find(",", start)) != std::string::npos) {
+    const std::string columnName = header.substr(start, end - start);
+    if (columnName == "RELI") {
+      columnAreaId_ = columnId;
+    }
+    if (columnName.size() > 4 &&
+	columnName[0] == 'B' && isdigit(columnName[1]) && isdigit(columnName[2])) {
+      std::string h = columnName.substr(3);
+      if (h == "BTOT") {
+	columnTotal_ = columnId;
+      } else if (h == "BWTOT") {
+	columnFemale_ = columnId;
+      } else if (h == "BMTOT") {
+	columnMale_ = columnId;
+      }
+    }
+    start = end + 1;
+    columnId += 1;
+  }
+}
+
+CSVParser::~CSVParser() {
+}
+
+bool CSVParser::Next(uint64_t *areaId, PopulationStats *stats) {
+  std::string header;
+  *areaId = 0;
+  memset(static_cast<void*>(stats), 0, sizeof(*stats));
+  if (!std::getline(*stream_, header)) {
+    return false;
+  }
+  size_t start = 0, end = 0;
+  int columnId = 0;
+  while ((end = header.find(",", start)) != std::string::npos) {
+    const int value = std::atoi(header.substr(start, end - start).c_str());
+    if (columnId == columnAreaId_) {
+      *areaId = value;
+    } else if (columnId == columnTotal_) {
+      stats->numTotal += value;
+    } else if (columnId == columnFemale_) {
+      stats->numFemale += value;
+    } else if (columnId == columnMale_) {
+      stats->numMale += value;
+    }
+    start = end + 1;
+    columnId += 1;
+  }
+  return true;
+}
 
 S2LatLng SwissGridToLatLng(double y, double x) {
   // Conversion from: Swiss Confederation, Federal Office of Topography.
