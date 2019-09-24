@@ -3,8 +3,9 @@
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-#include <s2/s2cell_id.h>
+#include <s2/s2latlng.h>
 
+#include "chpopstat.h"
 
 // TODO: The point of this program is just to make sure that we can
 // use glog, gflags, and s2 at the same time in a statically linked
@@ -16,8 +17,8 @@ int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
-  const S2CellId i = S2CellId::FromFace(4);
+  const S2LatLng c = geosmell::SwissGridToLatLng(600000, 200000);
   LOG(INFO) << "Hello world, here are " << 12 << " cookies for you; "
-	    << i.ToToken();
+	    << c;
   return 0;
 }

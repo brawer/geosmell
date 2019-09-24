@@ -34,6 +34,7 @@ COPY . /src/geosmell
 WORKDIR /src/geosmell/tools
 RUN cmake -H. -Bbuild -GNinja
 RUN cmake --build build
+RUN cmake --build build --target test
 
 WORKDIR /src/geosmell
 RUN go mod download
