@@ -4,9 +4,12 @@
 package main
 
 import (
+	"compress/gzip"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -23,6 +26,9 @@ func (s FakeServer) Open(path string) (f http.File, e error) {
 
 	case "/mirror/wikimedia.org/dumps/commonswiki/20190820":
 		return os.Open("testdata/wikicommons/20190820.html")
+
+	case "/mirror/wikimedia.org/dumps/commonswiki/20190820/commonswiki-20190820-geo_tags.sql.gz":
+		return os.Open("testdata/wikicommons/geo_tags.sql.gz")
 	}
 	return os.Open("testdata/wikicommons/notfound.html")
 }
@@ -32,12 +38,58 @@ func NewTestClient() *http.Client {
 	return &http.Client{Transport: http.NewFileTransport(fs)}
 }
 
-func TestFindLatestWikiCommons(t *testing.T) {
+func TestWikiCommonsFindUpstreamVersion(t *testing.T) {
 	d, _ := NewDataset("wikicommons", NewTestClient())
 	if version, err := d.FindUpstreamVersion(); err == nil {
 		equals(t, "2019-08-20", version.String()[:10])
 	} else {
 		t.Error(err)
+	}
+}
+
+func TestWikiCommonsProcess(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "geosmell-test")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer os.RemoveAll(tempDir)
+
+	filePath := path.Join(tempDir, "out.gz")
+	d, err := NewDataset("wikicommons", NewTestClient())
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if err := d.Process(17, filePath); err != nil {
+		t.Error(err)
+		return
+	}
+
+	stream, err := os.Open(filePath)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer stream.Close()
+
+	gzstream, err := gzip.NewReader(stream)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer gzstream.Close()
+
+	contentBytes, err := ioutil.ReadAll(gzstream)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	result := string(contentBytes)
+
+	if !strings.Contains(result, "\n1027878a84,21\n") {
+		t.Error("Expected result to contain '1027878a84,21'; got " + result)
 	}
 }
 
