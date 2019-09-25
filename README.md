@@ -1,3 +1,5 @@
+![Docker Cloud Automated build](https://img.shields.io/docker/cloud/automated/brawer/geosmell)
+
 # GeoSmell
 
 Experimental code for computing signals about geographic areas.
