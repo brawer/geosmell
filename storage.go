@@ -14,6 +14,10 @@ import (
 )
 
 func newS3Client(keys string) (*minio.Client, error) {
+	if keys == "" {
+		return nil, nil
+	}
+
 	type KeyConfig struct {
 		S3Host, S3AccessKey, S3SecretKey string
 	}
@@ -32,7 +36,7 @@ func newS3Client(keys string) (*minio.Client, error) {
 }
 
 func findStoredVersion(s3Client *minio.Client, dataset string) (*time.Time, error) {
-	if dataset == "" {
+	if s3Client == nil || dataset == "" {
 		return nil, nil
 	}
 
