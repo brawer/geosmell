@@ -12,8 +12,8 @@ Enter the S2 cell ID into the “cells” field and press the circular button.
 
 Currently, we process the following datasets:
 
-* **wikicommons**: geo-tagged pictures at [Wikimedia Commons](https://commons.wikimedia.org/)
-
+* **wikicommons**: geo-tagged pictures at
+  [Wikimedia Commons](https://commons.wikimedia.org/)
 * **chpopstat**: [Swiss Population Statistics](https://www.bfs.admin.ch/bfs/de/home/dienstleistungen/geostat/geodaten-bundesstatistik/gebaeude-wohnungen-haushalte-personen/bevoelkerung-haushalte-ab-2010.assetdetail.9606372.html)
 
 
