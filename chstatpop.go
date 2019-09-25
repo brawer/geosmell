@@ -21,6 +21,19 @@ const chStatPopHost = "https://www.bfs.admin.ch"
 
 const chStatPopListUrl = "/bfs/de/home/dienstleistungen/geostat/geodaten-bundesstatistik/gebaeude-wohnungen-haushalte-personen/bevoelkerung-haushalte-ab-2010/_jcr_content/par/tabs/items/geodaten_statpop/tabpar/ws_parametrized_list.dynamiclist.html"
 
+type SwissPopulationStatistics struct {
+	client *http.Client
+}
+
+func (s SwissPopulationStatistics) FindUpstreamVersion() (*time.Time, error) {
+	_, t, err := findLatestCHStatPop(s.client)
+	return t, err
+}
+
+func (s SwissPopulationStatistics) Process(s2Level int, outpath string) error {
+	return errors.New("not yet implemented")
+}
+
 func findLatestCHStatPop(client *http.Client) (string, *time.Time, error) {
 	errNotFound := errors.New("could not find latest STATPOP dataset at bfs.admin.ch")
 	listUrl, err := url.Parse(chStatPopHost + chStatPopListUrl)

@@ -4,78 +4,70 @@
 package main
 
 import (
-	"compress/gzip"
 	"flag"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
-	"sort"
-
-	"github.com/golang/geo/s2"
+	"path"
 )
 
 func main() {
+	datasetName := flag.String("dataset", "", "Name of dataset to be fetched")
 	level := flag.Int("level", 17, "Level of S2 cells being aggregated")
+	keys := flag.String("keys", "", "Path to JSON file with access keys for S3 storage")
+	force := flag.Bool("force", false, "Force data processing even if stored version is up to date")
 	flag.Parse()
 
 	client := &http.Client{}
-	commonsVersion := findLatestWikiCommons(client)
-	fmt.Printf("Fetching geotags of Wikimedia Commons, using version: %s\n",
-		commonsVersion.String()[:10])
-	resp, err := fetchWikiCommons(client, commonsVersion)
+	dataset, err := NewDataset(*datasetName, client)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	stream, err := gzip.NewReader(resp.Body)
+	s3Client, err := newS3Client(*keys)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	c := NewWikiCommonsParser(stream)
-	buf := make(map[s2.CellID]int64, 7000000) // 5797447 at level 17
-	for c.Next() {
-		if c.Lat == 0 && c.Lon == 0 {
-			continue
+	storedVersion, err := findStoredVersion(s3Client, *datasetName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if storedVersion != nil {
+		log.Printf("Dataset version in storage: %s\n", storedVersion.String()[:10])
+	}
+
+	upstreamVersion, err := dataset.FindUpstreamVersion()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("Dataset version at upstream: %s\n", upstreamVersion.String()[:10])
+	needsWork := *force || storedVersion == nil || storedVersion.Before(*upstreamVersion)
+	if !needsWork {
+		log.Printf("No work needed, stored dataset is already up to date")
+		return
+	}
+
+	tempDir, err := ioutil.TempDir("", "geosmell")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fileName := fmt.Sprintf(
+		"%s-%04d%02d%02d.csv.gz", *datasetName,
+		upstreamVersion.Year(), upstreamVersion.Month(), upstreamVersion.Day())
+	filePath := path.Join(tempDir, fileName)
+
+	log.Printf("Processing data, output in " + filePath)
+	if err := dataset.Process(*level, filePath); err != nil {
+		log.Fatal(err)
+	}
+
+	if s3Client != nil {
+		log.Printf("Uploading data to storage as " + fileName)
+		if err := upload(s3Client, fileName, filePath); err != nil {
+			log.Fatal(err)
 		}
-		latLng := s2.LatLngFromDegrees(c.Lat, c.Lon)
-		cellID := s2.CellIDFromLatLng(latLng).Parent(*level)
-		buf[cellID] += 1
 	}
-	filename := fmt.Sprintf("wikicommons-%04d%02d%02d.csv",
-		commonsVersion.Year(), commonsVersion.Month(),
-		commonsVersion.Day())
-	out, err := os.Create(filename + ".gz")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer out.Close()
-	gzout := gzip.NewWriter(out)
-	gzout.Name = filename
-	writeCounts(buf, gzout)
-	gzout.Close()
-	if err := c.Err(); err != nil {
-		log.Fatal(err)
-	}
-}
-
-type S2Cells []s2.CellID
-
-func (a S2Cells) Len() int           { return len(a) }
-func (a S2Cells) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a S2Cells) Less(i, j int) bool { return a[i] < a[j] }
-
-func writeCounts(counts map[s2.CellID]int64, out io.Writer) {
-	cells := make(S2Cells, len(counts))
-	i := 0
-	for cell, _ := range counts {
-		cells[i] = cell
-		i++
-	}
-	sort.Sort(cells)
-	for _, cell := range cells {
-		fmt.Fprintf(out, "%s,%d\n", cell.ToToken(), counts[cell])
-	}
+	log.Printf("Done")
 }

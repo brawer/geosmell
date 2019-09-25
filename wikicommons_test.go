@@ -33,8 +33,12 @@ func NewTestClient() *http.Client {
 }
 
 func TestFindLatestWikiCommons(t *testing.T) {
-	tc := NewTestClient()
-	equals(t, "2019-08-20", findLatestWikiCommons(tc).String()[:10])
+	d, _ := NewDataset("wikicommons", NewTestClient())
+	if version, err := d.FindUpstreamVersion(); err == nil {
+		equals(t, "2019-08-20", version.String()[:10])
+	} else {
+		t.Error(err)
+	}
 }
 
 func TestWikiCommonsParser(t *testing.T) {

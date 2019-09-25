@@ -6,17 +6,26 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/golang/geo/s2"
 )
+
+type WikiCommons struct {
+	client          *http.Client
+	upstreamVersion *time.Time
+}
 
 const baseUrl = "https://ftp.acc.umu.se/mirror/wikimedia.org/dumps/commonswiki/"
 
@@ -26,16 +35,20 @@ func fetchWikiCommons(client *http.Client, version time.Time) (*http.Response, e
 	return client.Get(url)
 }
 
-func findLatestWikiCommons(client *http.Client) time.Time {
-	resp, err := client.Get(baseUrl)
+func (c WikiCommons) FindUpstreamVersion() (*time.Time, error) {
+	if c.upstreamVersion != nil {
+		return c.upstreamVersion, nil
+	}
+
+	resp, err := c.client.Get(baseUrl)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	dateSet := make(map[string]bool)
 	re := regexp.MustCompile("<a href=\"(2[0-9]{7})/\">")
@@ -48,24 +61,67 @@ func findLatestWikiCommons(client *http.Client) time.Time {
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
 	for _, date := range dates {
-		resp, err := client.Get(baseUrl + "/" + date + "/")
+		resp, err := c.client.Get(baseUrl + "/" + date + "/")
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			log.Fatal(err)
+			return nil, err
 		}
 
 		if strings.Contains(string(body), "geo_tags.sql.gz") {
 			year, _ := strconv.Atoi(date[0:4])
 			month, _ := strconv.Atoi(date[4:6])
 			day, _ := strconv.Atoi(date[6:8])
-			return time.Date(year, time.Month(month), day, 0, 0, 0, 0,
-				time.UTC)
+			date := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+			c.upstreamVersion = &date
+			return c.upstreamVersion, nil
 		}
 	}
 
-	log.Fatal("cannot find any Wikimedia Commons dump")
-	return time.Date(2009, time.Month(11), 25, 0, 0, 0, 0, time.UTC)
+	return nil, errors.New("cannot find any Wikimedia Commons dump")
+}
+
+func (c WikiCommons) Process(s2Level int, outpath string) error {
+	version, err := c.FindUpstreamVersion()
+	if err != nil {
+		return err
+	}
+
+	resp, err := fetchWikiCommons(c.client, *version)
+	if err != nil {
+		return err
+	}
+
+	stream, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	parser := NewWikiCommonsParser(stream)
+	buf := make(map[s2.CellID]int64, 7000000) // 5797447 at level 17
+	for parser.Next() {
+		if parser.Lat == 0 && parser.Lon == 0 {
+			continue
+		}
+		latLng := s2.LatLngFromDegrees(parser.Lat, parser.Lon)
+		cellID := s2.CellIDFromLatLng(latLng).Parent(s2Level)
+		buf[cellID] += 1
+	}
+	if err := parser.Err(); err != nil {
+		return err
+	}
+
+	out, err := os.Create(outpath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	gzout := gzip.NewWriter(out)
+	defer gzout.Close()
+
+	writeCounts(buf, gzout)
+	return nil
 }
 
 type WikiCommonsParser struct {
@@ -118,4 +174,23 @@ func (c *WikiCommonsParser) Next() bool {
 
 func (c *WikiCommonsParser) Err() error {
 	return c.scanner.Err()
+}
+
+type S2Cells []s2.CellID
+
+func (a S2Cells) Len() int           { return len(a) }
+func (a S2Cells) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a S2Cells) Less(i, j int) bool { return a[i] < a[j] }
+
+func writeCounts(counts map[s2.CellID]int64, out io.Writer) {
+	cells := make(S2Cells, len(counts))
+	i := 0
+	for cell, _ := range counts {
+		cells[i] = cell
+		i++
+	}
+	sort.Sort(cells)
+	for _, cell := range cells {
+		fmt.Fprintf(out, "%s,%d\n", cell.ToToken(), counts[cell])
+	}
 }
