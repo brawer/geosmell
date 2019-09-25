@@ -2,7 +2,7 @@
 
 Experimental code for computing signals about geographic areas.
 
-To identify geographic areas, we uwe [S2 cells](http://s2geometry.io/).
+To identify geographic areas, we use [S2 cells](http://s2geometry.io/).
 You can choose the desired
 [aggregation level](https://s2geometry.io/resources/s2cell_statistics);
 `--level=17` aggregates to cells of about 70×70 meters in size.
@@ -12,7 +12,7 @@ Enter the S2 cell ID into the “cells” field and press the circular button.
 
 Currently, we process the following datasets:
 
-* `wikicommons`: geo-tagged pictures at [Wikimedia Commons](https://commons.wikimedia.org/)
+* **wikicommons**: geo-tagged pictures at [Wikimedia Commons](https://commons.wikimedia.org/)
 
 
 
@@ -43,7 +43,7 @@ with the following content:
 ```
 
 
-## Further work
+## Future work
 
 It would be nice to collect additional signals about geographic areas.
 Feel free to send pull requests.
