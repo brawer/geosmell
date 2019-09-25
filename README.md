@@ -27,11 +27,12 @@ go build ; go test
 
 ## Storage
 
-If you pass the access keys to an S3-compatible cloud storage system, the tool
-will store its output into the cloud. Also, it will check whether a previously
-stored version of a dataset is current; if so, it will exit early without doing
-work. This makes it possible to use geosmell as a cronjob, for example on
-Kubernetes or another cloud container system. Pass `--keys=/path/to/keys.json`
+If you pass the access keys to an S3-compatible cloud storage system,
+the tool will store its output into a cloud storage bucket “geosmell”.
+Also, if you pass the storage keys, the tool will check what data version
+is in storage; if the stored data version is still current, the tool will
+exit early without doing work. This makes it convenient to use geosmell
+as a daily running cronjob. For `--keys`, pass the location of a JSON file
 with the following content:
 
 ```json
