@@ -35,6 +35,7 @@ WORKDIR /src/geosmell/tools
 RUN cmake -H. -Bbuild -GNinja
 RUN cmake --build build
 RUN cmake --build build --target test
+RUN cp /src/geosmell/tools/build/chpopstat_convert /usr/local/bin
 
 WORKDIR /src/geosmell
 RUN go mod download
@@ -44,7 +45,7 @@ RUN CGO_ENABLED=1 go test
 FROM alpine:3.10.2
 WORKDIR /run
 RUN apk add --no-cache ca-certificates
-COPY --from=builder /src/geosmell/tools/build/chpopstat_convert .
-COPY --from=builder /src/geosmell/geosmell .
+COPY --from=builder /src/geosmell/tools/build/chpopstat_convert /usr/local/bin
+COPY --from=builder /src/geosmell/geosmell /usr/local/bin
 
 CMD /bin/sh

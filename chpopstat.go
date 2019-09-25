@@ -5,12 +5,14 @@ package main
 
 import (
 	"archive/zip"
+	"compress/gzip"
 	"errors"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"regexp"
 	"strconv"
@@ -26,12 +28,8 @@ type SwissPopulationStatistics struct {
 }
 
 func (s SwissPopulationStatistics) FindUpstreamVersion() (*time.Time, error) {
-	_, t, err := findLatestCHStatPop(s.client)
-	return t, err
-}
-
-func (s SwissPopulationStatistics) Process(s2Level int, outpath string) error {
-	return errors.New("not yet implemented")
+	_, version, err := findLatestCHStatPop(s.client)
+	return version, err
 }
 
 func findLatestCHStatPop(client *http.Client) (string, *time.Time, error) {
@@ -90,58 +88,105 @@ func findLatestCHStatPop(client *http.Client) (string, *time.Time, error) {
 	return downloadUrl.String(), &pubDate, nil
 }
 
-func fetchCHStatPop(client *http.Client, url string) (string, error) {
-	tempDir, err := ioutil.TempDir("", "geosmell-chstatpop")
-	fetchedPath := path.Join(tempDir, "fetched.zip")
-	extractedPath := path.Join(tempDir, "extracted.csv")
+func (s SwissPopulationStatistics) Process(s2Level int, outpath string) error {
+	// For the actual conversion, we currently call a C++ tool.
+	// Its source code is in "tools"; see Dockerfile for installation.
+	toolPath, err := exec.LookPath("chpopstat_convert")
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	resp, err := client.Get(url)
+	url, _, err := findLatestCHStatPop(s.client)
 	if err != nil {
-		return "", err
+		return err
+	}
+
+	tempDir, err := ioutil.TempDir("", "geosmell-chstatpop")
+	if err != nil {
+		return err
+	}
+
+	fetchedPath := path.Join(tempDir, "fetched.zip")
+	extractedPath := path.Join(tempDir, "extracted.csv")
+	convertedPath := path.Join(tempDir, "converted.csv")
+	if err != nil {
+		return err
+	}
+
+	resp, err := s.client.Get(url)
+	if err != nil {
+		return err
 	}
 	defer resp.Body.Close()
 
 	fetchedFile, err := os.Create(fetchedPath)
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer fetchedFile.Close()
 
 	_, err = io.Copy(fetchedFile, resp.Body)
 
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	extractedFile, err := os.Create(extractedPath)
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer extractedFile.Close()
 
 	zipFile, err := zip.OpenReader(fetchedFile.Name())
 	if err != nil {
-		return "", err
+		return err
 	}
 
+	found := false
 	re := regexp.MustCompile(`STATPOP20[0-9]{2}G\.csv$`)
 	for _, file := range zipFile.File {
 		if re.FindString(file.Name) != "" {
 			statFile, err := file.Open()
 			if err != nil {
-				return "", err
+				return err
 			}
 			defer statFile.Close()
 			_, err = io.Copy(extractedFile, statFile)
 			if err != nil {
-				return "", err
+				return err
 			}
+			found = true
+			break
 		}
 	}
+	if !found {
+		return errors.New("ZIP file does not contain file STATPOP20??G.csv")
+	}
 
-	// TODO: Extract CSV with raw statistics, write to exractedFile.
-	return extractedPath, nil
+	cmd := exec.Command(toolPath, extractedPath, convertedPath, strconv.Itoa(s2Level))
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	if err := cmd.Wait(); err != nil {
+		return err
+	}
+
+	convertedStream, err := os.Open(convertedPath)
+	if err != nil {
+		return err
+	}
+	defer convertedStream.Close()
+
+	resultFile, err := os.Create(outpath)
+	if err != nil {
+		return err
+	}
+	gzstream := gzip.NewWriter(resultFile)
+	defer gzstream.Close()
+	_, err = io.Copy(gzstream, convertedStream)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

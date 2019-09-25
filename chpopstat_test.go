@@ -4,13 +4,8 @@
 package main
 
 import (
-	//"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
-	//"path/filepath"
-	//"reflect"
-	//"runtime"
 	"strings"
 	"testing"
 )
@@ -29,37 +24,34 @@ func (s fakeCHStatPopServer) Open(path string) (f http.File, e error) {
 	}
 }
 
-func TestFindLatestCHStatPop(t *testing.T) {
+func TestSwissPopulationStatistics(t *testing.T) {
 	fs := &fakeCHStatPopServer{}
 	client := &http.Client{Transport: http.NewFileTransport(fs)}
-	if url, timestamp, err := findLatestCHStatPop(client); err == nil {
-		equals(t, "https://www.bfs.admin.ch/bfsstatic/dam/assets/9606372/master", url)
-		equals(t, "2019-08-27", timestamp.String()[:10])
-	} else {
-		t.Error(err)
-	}
-}
-
-func TestFetchCHStatPop(t *testing.T) {
-	fs := &fakeCHStatPopServer{}
-	client := &http.Client{Transport: http.NewFileTransport(fs)}
-	filepath, err := fetchCHStatPop(client, "https://www.bfs.admin.ch/bfsstatic/dam/assets/9606372/master")
+	dataset, err := NewDataset("chpopstat", client)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	if !strings.HasSuffix(filepath, "extracted.csv") {
-		t.Error("expected suffix \"extracted.csv\", got " + filepath)
-		return
-	}
 
-	content, err := ioutil.ReadFile(filepath)
+	version, err := dataset.FindUpstreamVersion()
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	if !strings.Contains(string(content), "RELI,X_KOORD") {
-		t.Error("expected " + filepath + " to contain RELI,X_KOORD")
+
+	equals(t, version.String()[:10], "2019-08-27")
+	result, err := processDataset(dataset, 17)
+	if err != nil {
+		if strings.Contains(err.Error(), "chpopstat_convert") &&
+			strings.Contains(err.Error(), "executable file not found") {
+			t.Skip("executable file \"chpopstat_convert\" not found; skipping tests on conversion results")
+			return
+		}
+		t.Error(err)
 		return
+	}
+
+	if !strings.Contains(result, "S2CellId,TotalPopulation") {
+		t.Error("expected S2CellId,TotalPopulation in result; got: " + result)
 	}
 }

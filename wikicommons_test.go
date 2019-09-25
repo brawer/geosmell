@@ -4,15 +4,8 @@
 package main
 
 import (
-	"compress/gzip"
-	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
-	"path"
-	"path/filepath"
-	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -48,45 +41,16 @@ func TestWikiCommonsFindUpstreamVersion(t *testing.T) {
 }
 
 func TestWikiCommonsProcess(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "geosmell-test")
+	dataset, err := NewDataset("wikicommons", NewTestClient())
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	defer os.RemoveAll(tempDir)
-
-	filePath := path.Join(tempDir, "out.gz")
-	d, err := NewDataset("wikicommons", NewTestClient())
+	result, err := processDataset(dataset, 17)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-
-	if err := d.Process(17, filePath); err != nil {
-		t.Error(err)
-		return
-	}
-
-	stream, err := os.Open(filePath)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	defer stream.Close()
-
-	gzstream, err := gzip.NewReader(stream)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	defer gzstream.Close()
-
-	contentBytes, err := ioutil.ReadAll(gzstream)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	result := string(contentBytes)
 
 	if !strings.Contains(result, "\n1027878a84,21\n") {
 		t.Error("Expected result to contain '1027878a84,21'; got " + result)
@@ -113,12 +77,4 @@ func parse(s string) []float64 {
 		r = append(r, p.Lon)
 	}
 	return r
-}
-
-func equals(tb testing.TB, exp, act interface{}) {
-	if !reflect.DeepEqual(exp, act) {
-		_, file, line, _ := runtime.Caller(1)
-		fmt.Printf("\033[31m%s:%d:\n\n\texp: %#v\n\n\tgot: %#v\033[39m\n\n", filepath.Base(file), line, exp, act)
-		tb.FailNow()
-	}
 }
