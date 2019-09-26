@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2019 Sascha Brawer <sascha@brawer.ch>
+# SPDX-License-Identifier: MIT
+#
+# Configuration file for running tests on https://travis-ci.org/
+
+language: go
+
+os:
+ - linux
+
+go:
+ - 1.12.x
+
+services:
+ - docker
+
+# C++ code is built and tested when building the container.
+script:
+ - go test -v
+ - docker build -t geosmell .
