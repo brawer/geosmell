@@ -1,4 +1,5 @@
-![Docker Cloud Automated build](https://img.shields.io/docker/cloud/automated/brawer/geosmell)
+[![Build Status](https://travis-ci.org/brawer/geosmell.svg?branch=master)](https://travis-ci.org/brawer/geosmell)
+
 
 # GeoSmell
 
